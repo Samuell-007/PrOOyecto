@@ -72,12 +72,16 @@ classDiagram
 ## 🎮 CODIGOOOO🤪.... A COMPILAR!!!
 
 ```cpp
-
 #include <iostream>
 #include <vector>
 #include <string>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
+
+// ---------- JSON ----------
+#include "json.hpp"
+using json = nlohmann::json;
 
 // ===============================
 // 🧩 Clase base Animal
@@ -93,20 +97,17 @@ public:
     Animal(std::string n, int xPos, int yPos, std::string s)
         : nombre(n), x(xPos), y(yPos), simbolo(s), vivo(true) {}
 
-    virtual void actuar() = 0; // Método virtual puro
+    virtual void actuar() = 0;
 
     int getX() { return x; }
     int getY() { return y; }
     std::string getSimbolo() { return simbolo; }
     std::string getNombre() { return nombre; }
     bool estaVivo() { return vivo; }
+
     void morir() { vivo = false; simbolo = "X"; }
 
     void setPos(int newX, int newY) { x = newX; y = newY; }
-
-    void info() {
-        std::cout << nombre << " está en (" << x << "," << y << ") símbolo: " << simbolo << "\n";
-    }
 };
 
 // ===============================
@@ -119,7 +120,6 @@ public:
         int dx = rand() % 3 - 1;
         int dy = rand() % 3 - 1;
         x += dx; y += dy;
-        std::cout << nombre << " se mueve sigilosamente a (" << x << "," << y << ")\n";
     }
 };
 
@@ -133,7 +133,6 @@ public:
         int dx = rand() % 3 - 1;
         int dy = rand() % 3 - 1;
         x += dx; y += dy;
-        std::cout << nombre << " nada o camina a (" << x << "," << y << ")\n";
     }
 };
 
@@ -147,7 +146,6 @@ public:
         int dx = rand() % 3 - 1;
         int dy = rand() % 3 - 1;
         x += dx; y += dy;
-        std::cout << nombre << " nada ferozmente a (" << x << "," << y << ")\n";
     }
 };
 
@@ -155,6 +153,7 @@ public:
 // 🗺️ Mostrar el mapa
 // ===============================
 void mostrarMapa(const std::vector<Animal*>& animales, std::vector<std::vector<std::string>>& mundo) {
+
     std::vector<std::vector<std::string>> mapa = mundo;
 
     for (auto a : animales) {
@@ -179,10 +178,10 @@ void mostrarMapa(const std::vector<Animal*>& animales, std::vector<std::vector<s
 // 💣 Destruir el mundo
 // ===============================
 void destruirMundo(std::vector<std::vector<std::string>>& mundo, std::vector<Animal*>& animales, int nivel) {
+
     int n = mundo.size();
     int centro = n / 2;
 
-    // Nivel 3: destrucción total
     if (nivel == 3) {
         for (auto& fila : mundo)
             for (auto& celda : fila)
@@ -195,7 +194,6 @@ void destruirMundo(std::vector<std::vector<std::string>>& mundo, std::vector<Ani
         return;
     }
 
-    // Nivel 1 o 2: explosión parcial
     int radio = (nivel == 1) ? 1 : 2;
 
     for (int i = centro - radio; i <= centro + radio; i++) {
@@ -205,12 +203,12 @@ void destruirMundo(std::vector<std::vector<std::string>>& mundo, std::vector<Ani
         }
     }
 
-    // Determinar quién muere o sobrevive
     for (auto a : animales) {
         int ax = a->getX();
         int ay = a->getY();
 
-        if (nivel == 3 || (ax >= centro - radio && ax <= centro + radio && ay >= centro - radio && ay <= centro + radio)) {
+        if (ax >= centro - radio && ax <= centro + radio &&
+            ay >= centro - radio && ay <= centro + radio) {
             a->morir();
         } else {
             std::cout << ">>> " << a->getNombre() << " se ha salvado milagrosamente!\n";
@@ -219,12 +217,56 @@ void destruirMundo(std::vector<std::vector<std::string>>& mundo, std::vector<Ani
 }
 
 // ===============================
+// 📦 GUARDAR EN JSON
+// ===============================
+void guardarJSON(const std::vector<std::vector<std::string>>& mundo,
+                 const std::vector<Animal*>& animales,
+                 const std::string& archivo) {
+
+    json j;
+
+    j["alto"] = mundo.size();
+    j["ancho"] = mundo[0].size();
+
+    // Guardar celdas
+    j["mapa"] = json::array();
+
+    for (int i = 0; i < mundo.size(); i++) {
+        json fila = json::array();
+        for (int j2 = 0; j2 < mundo[i].size(); j2++) {
+            fila.push_back(mundo[i][j2]);
+        }
+        j["mapa"].push_back(fila);
+    }
+
+    // Guardar animales
+    j["animales"] = json::array();
+
+    for (auto a : animales) {
+        json aData;
+        aData["nombre"] = a->getNombre();
+        aData["simbolo"] = a->getSimbolo();
+        aData["x"] = a->getX();
+        aData["y"] = a->getY();
+        aData["vivo"] = a->estaVivo();
+        j["animales"].push_back(aData);
+    }
+
+    std::ofstream out(archivo);
+    out << j.dump(4);
+    out.close();
+
+    std::cout << "\n📁 Mundo guardado en: " << archivo << "\n";
+}
+
+// ===============================
 // 🧭 MAIN
 // ===============================
 int main() {
+
     srand(time(0));
 
-    // Tres mundos
+    // Tres mundos prediseñados
     std::vector<std::vector<std::string>> mundo1 = {
         {"~","~","~",".",".","."},
         {"~","~","~",".",".","."},
@@ -250,6 +292,16 @@ int main() {
         {".",".",".",".","~","~"}
     };
 
+    // Leyenda
+    std::cout << "=== SIGNIFICADO DE CADA SIMBOLO EN EL MAPA ===\n";
+    std::cout << "G - Gato: Un Gato (G) ha aparecido en el mundo... y está feliz cazando sombras invisibles.\n";
+    std::cout << "P - Pato: Un Pato (P) ha sido creado. Camina, nada y vive su vida sin preocupaciones.\n";
+    std::cout << "T - Tiburon: Un Tiburón (T) ha entrado al mapa. Si huele miedo, mejor no estar cerca.\n";
+    std::cout << "~ - Agua: Representa agua.\n";
+    std::cout << ". - Tierra: Zona seca del mapa.\n";
+    std::cout << "X - Zona destruida por la bomba.\n";
+    std::cout << "===============================================\n\n";
+
     int opcion;
     std::cout << "Selecciona el mundo (1, 2, 3): ";
     std::cin >> opcion;
@@ -259,17 +311,53 @@ int main() {
     else if (opcion == 2) mundoSeleccionado = mundo2;
     else mundoSeleccionado = mundo3;
 
-    // Crear animales
-    std::vector<Animal*> animales;
-    animales.push_back(new Gato(4,1));
-    animales.push_back(new Pato(2,4));
-    animales.push_back(new Tiburon(1,1));
+    // ===============================
+    // 🔥 GENERAR POSICIONES ALEATORIAS
+    // ===============================
+    int alto = mundoSeleccionado.size();
+    int ancho = mundoSeleccionado[0].size();
 
-    // Mostrar mapa inicial
+    std::vector<std::pair<int,int>> posicionesUsadas;
+
+    auto generarPos = [&](int& x, int& y) {
+        bool repetido;
+        do {
+            repetido = false;
+            x = rand() % alto;
+            y = rand() % ancho;
+
+            for (auto& p : posicionesUsadas) {
+                if (p.first == x && p.second == y)
+                    repetido = true;
+            }
+        } while(repetido);
+
+        posicionesUsadas.push_back({x, y});
+    };
+
+    int gx, gy, px, py, tx, ty;
+
+    generarPos(gx, gy);
+    generarPos(px, py);
+    generarPos(tx, ty);
+
+    // ===============================
+    // 🐾 Crear animales con posiciones aleatorias
+    // ===============================
+    std::vector<Animal*> animales;
+    animales.push_back(new Gato(gx, gy));
+    animales.push_back(new Pato(px, py));
+    animales.push_back(new Tiburon(tx, ty));
+
+    // ===============================
+    // 📌 Mostrar mapa inicial
+    // ===============================
     std::cout << "\nMapa inicial:\n";
     mostrarMapa(animales, mundoSeleccionado);
 
-    // Preguntar si se destruye el mundo
+    // ===============================
+    // 💣 Pregunta de destrucción
+    // ===============================
     char opcionDestruir;
     std::cout << "¿Deseas destruir el mundo? (S/N): ";
     std::cin >> opcionDestruir;
@@ -280,11 +368,18 @@ int main() {
         std::cin >> nivel;
 
         destruirMundo(mundoSeleccionado, animales, nivel);
+
         std::cout << "\nMundo después del bombardeo:\n";
         mostrarMapa(animales, mundoSeleccionado);
+
     } else {
         std::cout << "El mundo ha sido salvado. Los animales viven en paz.\n";
     }
+
+    // ===============================
+    // 💾 Guardar al final en JSON
+    // ===============================
+    guardarJSON(mundoSeleccionado, animales, "mundo_guardado.json");
 
     for (auto a : animales) delete a;
     return 0;
